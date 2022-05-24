@@ -6,9 +6,9 @@ import java.util.regex.Pattern;
 
 public class Lexer {
 
-    private String testCode;
-    private ArrayList<Token> tokens = new ArrayList<>();
-    private static Map<String, Pattern> lexems = new HashMap<>();
+    private final String testCode;
+    private final ArrayList<Token> tokens = new ArrayList<>();
+    private static final Map<String, Pattern> lexems = new HashMap<>();
 
     public Lexer(String testCode) {
         this.testCode = testCode;
@@ -30,6 +30,7 @@ public class Lexer {
         lexems.put("DO", Pattern.compile("^DO$"));
         lexems.put("FOR", Pattern.compile("^FOR$"));
         lexems.put("DIV", Pattern.compile("^,$"));
+        lexems.put("PRINT", Pattern.compile("^PRINT$"));
     }
 
     private void run() {
@@ -59,10 +60,14 @@ public class Lexer {
                 }
             }
         }
-        tokens.forEach(System.out::println);
     }
 
     public ArrayList<Token> getTokens() {
         return tokens;
+    }
+
+    @Override
+    public String toString() {
+        return "Lexer" + tokens;
     }
 }

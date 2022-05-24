@@ -13,136 +13,79 @@ WHILE -> "^WHILE$"
 DO -> "^DO$"
 FOR -> "^FOR$"
 DIV -> "^,$"
+PRINT -> "^PRINT$"
 
 
 lang -> expr+
 expr -> body ENDL
-body -> assign | if_op | while_op | do_while_op | for_op
+body -> expr_assign | if_op | while_op | do_while_op | for_op | print
 expr_value -> value (OP value)*
 value -> (VAR | DIGIT) | infinity
 infinity -> L_BC expr_value R_BC
 condition -> VAR COMPARE_OP expr_value
-if_op -> IF L_BC condition R_BC body+ else_op?
+condition_in_br -> L_BC condition R_BC
+if_op -> IF condition_in_br body+ else_op?
 else_op -> ELSE expr
-while_op -> WHILE L_BC condition R_BC body+
-do_while_op -> DO body+ WHILE L_BC condition R_BC
+while_op -> WHILE condition_in_br body+
+do_while_op -> DO body+ WHILE condition_in_br
 for_op -> FOR L_BC assign DIV condition DIV assign R_BC body+
+expr_assign -> assign (DIV assign)*
 assign -> VAR ASSIGN_OP expr_value
+print -> PRINT (L_BC (VAR | DIGIT) R_BC)?
 */
 
 import java.util.ArrayList;
+import java.util.Objects;
 
 public class Parser {
 
-    private int iterator = 0;
-    private ArrayList<Token> tokens;
-    private int len;
+    private final ArrayList<Token> tokens;
+    private final int len;
+
+    private int iterator;
+    private int curLine;
     private Token curToken;
-    private int curLine = 0;
-    public boolean correctCode = true;
+
+    public boolean correctCode;
 
     public Parser(ArrayList<Token> tokens, int len) {
         this.tokens = tokens;
         this.len = len;
+        curLine = 0;
+        iterator = 0;
         curToken = tokens.get(iterator);
+        correctCode = true;
     }
 
-    public void VAR() throws ParserException {
-        if (curToken.getType() != "VAR") {
+    public void TERMINAL(String tokenType) throws ParserException {
+        if (!Objects.equals(curToken.getType(), tokenType)) {
             correctCode = false;
-            throw new ParserException(curLine, iterator, curToken, "VAR");
+            throw new ParserException(curLine, iterator, curToken, tokenType);
         }
     }
 
-    public void DIGIT() throws ParserException {
-        if (curToken.getType() != "DIGIT") {
-            correctCode = false;
-            throw new ParserException(curLine, iterator, curToken, "DIGIT");
+    public void terminalCheck(String tokenType) {
+        try {
+            TERMINAL(tokenType);
+        } catch (ParserException e) {
+            e.getInfo(curLine, iterator, e.current, e.expected);
+            curToken = tokens.get(--iterator);
         }
+        curToken = tokens.get(++iterator);
     }
 
-    public void ASSIGN_OP() throws ParserException {
-        if (curToken.getType() != "ASSIGN_OP") {
-            correctCode = false;
-            throw new ParserException(curLine, iterator, curToken, "ASSIGN_OP");
-        }
+    public boolean body_condition() {
+        return switch (curToken.getType()) {
+            case "VAR", "IF", "FOR", "WHILE", "DO", "PRINT" -> true;
+            default -> false;
+        };
     }
 
-    public void OP() throws ParserException {
-        if (curToken.getType() != "OP") {
-            correctCode = false;
-            throw new ParserException(curLine, iterator, curToken, "OP");
-        }
-    }
-
-    public void L_BC() throws ParserException {
-        if (curToken.getType() != "L_BC") {
-            correctCode = false;
-            throw new ParserException(curLine, iterator, curToken, "L_BC");
-        }
-    }
-
-    public void R_BC() throws ParserException {
-        if (curToken.getType() != "R_BC") {
-            correctCode = false;
-            throw new ParserException(curLine, iterator, curToken, "R_BC");
-        }
-    }
-
-    public void ENDL() throws ParserException {
-        if (curToken.getType() != "ENDL") {
-            correctCode = false;
-            throw new ParserException(curLine, iterator, curToken, "ENDL");
-        }
-    }
-
-    public void COMPARE_OP() throws ParserException {
-        if (curToken.getType() != "COMPARE_OP") {
-            correctCode = false;
-            throw new ParserException(curLine, iterator, curToken, "COMPARE_OP");
-        }
-    }
-
-    public void IF() throws ParserException {
-        if (curToken.getType() != "IF") {
-            correctCode = false;
-            throw new ParserException(curLine, iterator, curToken, "IF");
-        }
-    }
-
-    public void ELSE() throws ParserException {
-        if (curToken.getType() != "ELSE") {
-            correctCode = false;
-            throw new ParserException(curLine, iterator, curToken, "ELSE");
-        }
-    }
-
-    public void DO() throws ParserException {
-        if (curToken.getType() != "DO") {
-            correctCode = false;
-            throw new ParserException(curLine, iterator, curToken, "DO");
-        }
-    }
-
-    public void WHILE() throws ParserException {
-        if (curToken.getType() != "WHILE") {
-            correctCode = false;
-            throw new ParserException(curLine, iterator, curToken, "WHILE");
-        }
-    }
-
-    public void FOR() throws ParserException {
-        if (curToken.getType() != "FOR") {
-            correctCode = false;
-            throw new ParserException(curLine, iterator, curToken, "FOR");
-        }
-    }
-
-    public void DIV() throws ParserException {
-        if (curToken.getType() != "DIV") {
-            correctCode = false;
-            throw new ParserException(curLine, iterator, curToken, "DIV");
-        }
+    public boolean body_condition_do_while() {
+        return switch (curToken.getType()) {
+            case "VAR", "IF", "FOR", "DO", "PRINT" -> true;
+            default -> false;
+        };
     }
 
     public void lang() throws ParserException {
@@ -154,335 +97,132 @@ public class Parser {
 
     public void expr() {
         body();
-        try {
-            ENDL();
-        } catch (ParserException e) {
-            e.getInfo(curLine, iterator, e.current, e.expected);
-            curToken = tokens.get(--iterator);
-        }
-        curToken = tokens.get(++iterator);
+        terminalCheck("ENDL");
     }
 
     public void body() {
-        if (curToken.getType() == "VAR") {
-            assign();
-        } else if (curToken.getType() == "IF") {
-            if_op();
-        } else if (curToken.getType() == "WHILE") {
-            while_op();
-        } else if (curToken.getType() == "DO") {
-            do_while_op();
-        } else if (curToken.getType() == "FOR") {
-            for_op();
-        } else {
-            try {
-                VAR();
-            } catch (ParserException e) {
-                e.getInfo(curLine, iterator, e.current, e.expected);
-            }
-            curToken = tokens.get(++iterator);
+        switch (curToken.getType()) {
+            case "VAR" -> expr_assign();
+            case "IF" -> if_op();
+            case "WHILE" -> while_op();
+            case "DO" -> do_while_op();
+            case "FOR" -> for_op();
+            case "PRINT" -> print();
+            default -> terminalCheck("VAR");
         }
     }
 
     public void expr_value() {
-        if ((curToken.getType() == "VAR") || (curToken.getType() == "DIGIT")) {
-            value();
+        switch (curToken.getType()) {
+            case "VAR", "DIGIT" -> value();
+            case "L_BC" -> infinity();
+            default -> terminalCheck("VAR");
         }
-        else if (curToken.getType() == "L_BC") {
-            infinity();
-        } else {
-            try {
-                VAR();
-            } catch (ParserException e) {
-                e.getInfo(curLine, iterator, e.current, e.expected);
-            }
-        }
-        while (curToken.getType() == "OP") {
-            try {
-                OP();
-            } catch (ParserException e) {
-                e.getInfo(curLine, iterator, e.current, e.expected);
-                curToken = tokens.get(--iterator);
-            }
-            curToken = tokens.get(++iterator);
-
+        while ("OP".equals(curToken.getType())) {
+            terminalCheck("OP");
             value();
         }
     }
 
     public void value() {
-        if (curToken.getType() == "VAR") {
-            try {
-                VAR();
-            } catch (ParserException e) {
-                e.getInfo(curLine, iterator, e.current, e.expected);
-                curToken = tokens.get(--iterator);
-            }
-            curToken = tokens.get(++iterator);
-        } else if (curToken.getType() == "DIGIT") {
-            try {
-                DIGIT();
-            } catch (ParserException e) {
-                e.getInfo(curLine, iterator, e.current, e.expected);
-                curToken = tokens.get(--iterator);
-            }
-            curToken = tokens.get(++iterator);
-        } else if (curToken.getType() == "L_BC") {
-            infinity();
-        } else {
-            try {
-                VAR();
-            } catch (ParserException e) {
-                e.getInfo(curLine, iterator, e.current, e.expected);
-            }
-            curToken = tokens.get(++iterator);
+        switch (curToken.getType()) {
+            case "DIGIT" -> terminalCheck("DIGIT");
+            case "L_BC" -> infinity();
+            default -> terminalCheck("VAR");
         }
     }
 
     public void infinity() {
-        try {
-            L_BC();
-        } catch (ParserException e) {
-            e.getInfo(curLine, iterator, e.current, e.expected);
-            curToken = tokens.get(--iterator);
-        }
-        curToken = tokens.get(++iterator);
-
+        terminalCheck("L_BC");
         expr_value();
-
-        try {
-            R_BC();
-        } catch (ParserException e) {
-            e.getInfo(curLine, iterator, e.current, e.expected);
-            curToken = tokens.get(--iterator);
-        }
-        curToken = tokens.get(++iterator);
+        terminalCheck("R_BC");
     }
 
     public void condition() {
-        try {
-            VAR();
-        } catch (ParserException e) {
-            e.getInfo(curLine, iterator, e.current, e.expected);
-            curToken = tokens.get(--iterator);
-        }
-        curToken = tokens.get(++iterator);
-
-        try {
-            COMPARE_OP();
-        } catch (ParserException e) {
-            e.getInfo(curLine, iterator, e.current, e.expected);
-            //curToken = tokens.get(--iterator);
-        }
-        curToken = tokens.get(++iterator);
-
+        terminalCheck("VAR");
+        terminalCheck("COMPARE_OP");
         expr_value();
     }
 
-    public void if_op() {
-        try {
-            IF();
-        } catch (ParserException e) {
-            e.getInfo(curLine, iterator, e.current, e.expected);
-            curToken = tokens.get(--iterator);
-        }
-        curToken = tokens.get(++iterator);
-
-        try {
-            L_BC();
-        } catch (ParserException e) {
-            e.getInfo(curLine, iterator, e.current, e.expected);
-            curToken = tokens.get(--iterator);
-        }
-        curToken = tokens.get(++iterator);
-
+    public void condition_in_br() {
+        terminalCheck("L_BC");
         condition();
+        terminalCheck("R_BC");
+    }
 
-        try {
-            R_BC();
-        } catch (ParserException e) {
-            e.getInfo(curLine, iterator, e.current, e.expected);
-            curToken = tokens.get(--iterator);
-        }
-        curToken = tokens.get(++iterator);
-
+    public void if_op() {
+        terminalCheck("IF");
+        condition_in_br();
         do {
             body();
-        } while (curToken.getType() == "VAR" || curToken.getType() == "IF" || curToken.getType() == "FOR"
-                || curToken.getType() == "WHILE" || curToken.getType() == "DO");
-
-        if (curToken.getType() == "ELSE") {
+        } while (body_condition());
+        if ("ELSE".equals(curToken.getType())) {
             else_op();
         }
     }
 
     public void else_op() {
-        try {
-            ELSE();
-        } catch (ParserException e) {
-            e.getInfo(curLine, iterator, e.current, e.expected);
-            curToken = tokens.get(--iterator);
-        }
-        curToken = tokens.get(++iterator);
-
+        terminalCheck("ELSE");
         do {
             expr();
-        } while (curToken.getType() == "VAR" || curToken.getType() == "IF" || curToken.getType() == "FOR"
-                || curToken.getType() == "WHILE" || curToken.getType() == "DO");
+        } while (body_condition());
     }
 
     public void while_op() {
-        try {
-            WHILE();
-        } catch (ParserException e) {
-            e.getInfo(curLine, iterator, e.current, e.expected);
-            curToken = tokens.get(--iterator);
-        }
-        curToken = tokens.get(++iterator);
-
-        try {
-            L_BC();
-        } catch (ParserException e) {
-            e.getInfo(curLine, iterator, e.current, e.expected);
-            curToken = tokens.get(--iterator);
-        }
-        curToken = tokens.get(++iterator);
-
-        condition();
-
-        try {
-            R_BC();
-        } catch (ParserException e) {
-            e.getInfo(curLine, iterator, e.current, e.expected);
-            curToken = tokens.get(--iterator);
-        }
-        curToken = tokens.get(++iterator);
-
+        terminalCheck("WHILE");
+        condition_in_br();
         do {
             body();
-        } while (curToken.getType() == "VAR" || curToken.getType() == "IF" || curToken.getType() == "FOR"
-                || curToken.getType() == "WHILE" || curToken.getType() == "DO");
+        } while (body_condition());
     }
 
     public void do_while_op() {
-        try {
-            DO();
-        } catch (ParserException e) {
-            e.getInfo(curLine, iterator, e.current, e.expected);
-            curToken = tokens.get(--iterator);
-        }
-        curToken = tokens.get(++iterator);
-
+        terminalCheck("DO");
         do {
             body();
-        } while (curToken.getType() == "VAR" || curToken.getType() == "IF" || curToken.getType() == "FOR"
-                || curToken.getType() == "WHILE" || curToken.getType() == "DO");
-
-        try {
-            WHILE();
-        } catch (ParserException e) {
-            e.getInfo(curLine, iterator, e.current, e.expected);
-            //curToken = tokens.get(--iterator);
-        }
-        curToken = tokens.get(++iterator);
-
-        try {
-            IF();
-        } catch (ParserException e) {
-            e.getInfo(curLine, iterator, e.current, e.expected);
-            curToken = tokens.get(--iterator);
-        }
-        curToken = tokens.get(++iterator);
-
-        try {
-            L_BC();
-        } catch (ParserException e) {
-            e.getInfo(curLine, iterator, e.current, e.expected);
-            curToken = tokens.get(--iterator);
-        }
-        curToken = tokens.get(++iterator);
-
-        condition();
-
-        try {
-            R_BC();
-        } catch (ParserException e) {
-            e.getInfo(curLine, iterator, e.current, e.expected);
-            curToken = tokens.get(--iterator);
-        }
-        curToken = tokens.get(++iterator);
+        } while (body_condition_do_while());
+        terminalCheck("WHILE");
+        condition_in_br();
     }
 
     public void for_op() {
-        try {
-            FOR();
-        } catch (ParserException e) {
-            e.getInfo(curLine, iterator, e.current, e.expected);
-            curToken = tokens.get(--iterator);
-        }
-        curToken = tokens.get(++iterator);
-
-        try {
-            L_BC();
-        } catch (ParserException e) {
-            e.getInfo(curLine, iterator, e.current, e.expected);
-            curToken = tokens.get(--iterator);
-        }
-        curToken = tokens.get(++iterator);
-
+        terminalCheck("FOR");
+        terminalCheck("L_BC");
         assign();
-
-        try {
-            DIV();
-        } catch (ParserException e) {
-            e.getInfo(curLine, iterator, e.current, e.expected);
-            curToken = tokens.get(--iterator);
-        }
-        curToken = tokens.get(++iterator);
-
+        terminalCheck("DIV");
         condition();
-
-        try {
-            DIV();
-        } catch (ParserException e) {
-            e.getInfo(curLine, iterator, e.current, e.expected);
-            curToken = tokens.get(--iterator);
-        }
-        curToken = tokens.get(++iterator);
-
+        terminalCheck("DIV");
         assign();
-
-        try {
-            R_BC();
-        } catch (ParserException e) {
-            e.getInfo(curLine, iterator, e.current, e.expected);
-            curToken = tokens.get(--iterator);
-        }
-        curToken = tokens.get(++iterator);
-
+        terminalCheck("R_BC");
         do {
             body();
-        } while (curToken.getType() == "VAR" || curToken.getType() == "IF" || curToken.getType() == "FOR"
-                || curToken.getType() == "WHILE" || curToken.getType() == "DO");
+        } while (body_condition());
     }
 
     public void assign() {
-        try {
-            VAR();
-        } catch (ParserException e) {
-            e.getInfo(curLine, iterator, e.current, e.expected);
-            curToken = tokens.get(--iterator);
-        }
-        curToken = tokens.get(++iterator);
-
-        try {
-            ASSIGN_OP();
-        } catch (ParserException e) {
-            e.getInfo(curLine, iterator, e.current, e.expected);
-            curToken = tokens.get(--iterator);
-        }
-        curToken = tokens.get(++iterator);
-
+        terminalCheck("VAR");
+        terminalCheck("ASSIGN_OP");
         expr_value();
+    }
+
+    public void expr_assign() {
+        assign();
+        while ("DIV".equals(curToken.getType())) {
+            terminalCheck("DIV");
+            assign();
+        }
+    }
+
+    public void print() {
+        terminalCheck("PRINT");
+        if ("L_BC".equals(curToken.getType())) {
+            terminalCheck("L_BC");
+            if ("DIGIT".equals(curToken.getType())) {
+                terminalCheck("DIGIT");
+            } else {
+                terminalCheck("VAR");
+            }
+            terminalCheck("R_BC");
+        }
     }
 }

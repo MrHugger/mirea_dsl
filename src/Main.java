@@ -14,7 +14,7 @@ public class Main {
                 code = code.concat(Character.toString((char) c));
             }
         } catch (IOException e) {
-            e.getMessage();
+            System.out.println(e.getMessage());
         }
 
         return code;
@@ -23,12 +23,13 @@ public class Main {
     public static void main(String[] args) {
         String testCode = getCode();
         Lexer lexer = new Lexer(testCode);
+        System.out.println(lexer);
 
         System.out.printf("\n/****SOURCE CODE****/\n%s\n\n", testCode);
         int len = 0;
 
         for (Token token: lexer.getTokens()) {
-            if (token.getType() == "ENDL") {
+            if ("ENDL".equals(token.getType())) {
                 len++;
             }
         }
@@ -36,11 +37,11 @@ public class Main {
         Parser parser = new Parser(lexer.getTokens(), len);
         try {
             parser.lang();
-        } catch (ParserException | IndexOutOfBoundsException e) {}
+        } catch (ParserException | IndexOutOfBoundsException ignored) {}
 
         if (parser.correctCode) {
             Interpreter interpreter = new Interpreter(lexer.getTokens());
-            System.out.println(interpreter.getVariables());
+            System.out.println(interpreter);
         }
     }
 }
